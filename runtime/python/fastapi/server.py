@@ -16,7 +16,7 @@ import sys
 import argparse
 import logging
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
-from fastapi import FastAPI, UploadFile, Form, File
+from fastapi import FastAPI, Form
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -25,7 +25,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append('{}/../../..'.format(ROOT_DIR))
 sys.path.append('{}/../../../third_party/Matcha-TTS'.format(ROOT_DIR))
 from cosyvoice.cli.cosyvoice import AutoModel
-from cosyvoice.utils.file_utils import load_wav
 
 app = FastAPI()
 # set cross region allowance
@@ -35,6 +34,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"])
+
+# Set in __main__ before uvicorn serves (server-side path to reference wav)
+prompt_wav_path = ''
 
 
 def generate_data(model_output):
@@ -52,18 +54,16 @@ async def inference_sft(tts_text: str = Form(), spk_id: str = Form()):
 
 @app.get("/inference_zero_shot")
 @app.post("/inference_zero_shot")
-async def inference_zero_shot(tts_text: str = Form(), prompt_text: str = Form(), prompt_wav: UploadFile = File()):
-    prompt_speech_16k = load_wav(prompt_wav.file, 16000)
-    model_output = cosyvoice.inference_zero_shot(tts_text, prompt_text, prompt_speech_16k)
-    return StreamingResponse(generate_data(model_output))
+async def inference_zero_shot(tts_text: str = Form(), prompt_text: str = Form()):
+    model_output = cosyvoice.inference_zero_shot(tts_text, prompt_text, prompt_wav_path)
+    return StreamingResponse(generate_data(model_output), media_type='application/octet-stream')
 
 
 @app.get("/inference_cross_lingual")
 @app.post("/inference_cross_lingual")
-async def inference_cross_lingual(tts_text: str = Form(), prompt_wav: UploadFile = File()):
-    prompt_speech_16k = load_wav(prompt_wav.file, 16000)
-    model_output = cosyvoice.inference_cross_lingual(tts_text, prompt_speech_16k)
-    return StreamingResponse(generate_data(model_output))
+async def inference_cross_lingual(tts_text: str = Form()):
+    model_output = cosyvoice.inference_cross_lingual(tts_text, prompt_wav_path)
+    return StreamingResponse(generate_data(model_output), media_type='application/octet-stream')
 
 
 @app.get("/inference_instruct")
@@ -75,10 +75,9 @@ async def inference_instruct(tts_text: str = Form(), spk_id: str = Form(), instr
 
 @app.get("/inference_instruct2")
 @app.post("/inference_instruct2")
-async def inference_instruct2(tts_text: str = Form(), instruct_text: str = Form(), prompt_wav: UploadFile = File()):
-    prompt_speech_16k = load_wav(prompt_wav.file, 16000)
-    model_output = cosyvoice.inference_instruct2(tts_text, instruct_text, prompt_speech_16k)
-    return StreamingResponse(generate_data(model_output))
+async def inference_instruct2(tts_text: str = Form(), instruct_text: str = Form()):
+    model_output = cosyvoice.inference_instruct2(tts_text, instruct_text, prompt_wav_path)
+    return StreamingResponse(generate_data(model_output), media_type='application/octet-stream')
 
 
 if __name__ == '__main__':
@@ -90,6 +89,14 @@ if __name__ == '__main__':
                         type=str,
                         default='iic/CosyVoice2-0.5B',
                         help='local path or modelscope repo id')
+    default_prompt = os.path.normpath(os.path.join(ROOT_DIR, '..', '..', '..', 'asset', 'zero_shot_prompt.wav'))
+    parser.add_argument('--prompt_wav',
+                        type=str,
+                        default=default_prompt,
+                        help='server-side wav path for zero_shot / cross_lingual / instruct2')
     args = parser.parse_args()
+    prompt_wav_path = os.path.abspath(args.prompt_wav)
+    if not os.path.isfile(prompt_wav_path):
+        raise FileNotFoundError('prompt_wav not found: {}'.format(prompt_wav_path))
     cosyvoice = AutoModel(model_dir=args.model_dir)
     uvicorn.run(app, host="0.0.0.0", port=args.port)

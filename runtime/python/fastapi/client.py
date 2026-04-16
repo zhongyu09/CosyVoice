@@ -26,27 +26,31 @@ def main():
             'tts_text': args.tts_text,
             'spk_id': args.spk_id
         }
-        response = requests.request("GET", url, data=payload, stream=True)
+        response = requests.post(url, data=payload, stream=True)
     elif args.mode == 'zero_shot':
         payload = {
             'tts_text': args.tts_text,
             'prompt_text': args.prompt_text
         }
-        files = [('prompt_wav', ('prompt_wav', open(args.prompt_wav, 'rb'), 'application/octet-stream'))]
-        response = requests.request("GET", url, data=payload, files=files, stream=True)
+        response = requests.post(url, data=payload, stream=True)
     elif args.mode == 'cross_lingual':
         payload = {
             'tts_text': args.tts_text,
         }
-        files = [('prompt_wav', ('prompt_wav', open(args.prompt_wav, 'rb'), 'application/octet-stream'))]
-        response = requests.request("GET", url, data=payload, files=files, stream=True)
+        response = requests.post(url, data=payload, stream=True)
+    elif args.mode == 'instruct2':
+        payload = {
+            'tts_text': args.tts_text,
+            'instruct_text': args.instruct_text
+        }
+        response = requests.post(url, data=payload, stream=True)
     else:
         payload = {
             'tts_text': args.tts_text,
             'spk_id': args.spk_id,
             'instruct_text': args.instruct_text
         }
-        response = requests.request("GET", url, data=payload, stream=True)
+        response = requests.post(url, data=payload, stream=True)
     tts_audio = b''
     for r in response.iter_content(chunk_size=16000):
         tts_audio += r
@@ -66,8 +70,8 @@ if __name__ == "__main__":
                         default='50000')
     parser.add_argument('--mode',
                         default='sft',
-                        choices=['sft', 'zero_shot', 'cross_lingual', 'instruct'],
-                        help='request mode')
+                        choices=['sft', 'zero_shot', 'cross_lingual', 'instruct', 'instruct2'],
+                        help='request mode (reference wav is server --prompt_wav)')
     parser.add_argument('--tts_text',
                         type=str,
                         default='你好，我是通义千问语音合成大模型，请问有什么可以帮您的吗？')
@@ -79,7 +83,8 @@ if __name__ == "__main__":
                         default='希望你以后能够做的比我还好呦。')
     parser.add_argument('--prompt_wav',
                         type=str,
-                        default='../../../asset/zero_shot_prompt.wav')
+                        default='../../../asset/zero_shot_prompt.wav',
+                        help='unused: server uses its own --prompt_wav')
     parser.add_argument('--instruct_text',
                         type=str,
                         default='Theo \'Crimson\', is a fiery, passionate rebel leader. \
