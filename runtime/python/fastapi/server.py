@@ -98,5 +98,5 @@ if __name__ == '__main__':
     prompt_wav_path = os.path.abspath(args.prompt_wav)
     if not os.path.isfile(prompt_wav_path):
         raise FileNotFoundError('prompt_wav not found: {}'.format(prompt_wav_path))
-    cosyvoice = AutoModel(model_dir=args.model_dir)
+    cosyvoice = AutoModel(model_dir=args.model_dir, load_vllm=True)
     uvicorn.run(app, host="0.0.0.0", port=args.port)
